@@ -476,7 +476,7 @@ async function render() {
       bunny.setRotationFromQuaternion(rotationQuaternion);
     }
   }
-
+  bunny.scale.set(0.5, 0.5, 0.5);
   renderer.render(scene, camera);
   updateCalibration();
   await sleep(10); // Allow 10ms for UI updates
