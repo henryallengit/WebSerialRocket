@@ -9,7 +9,6 @@
 'use strict';
 
 import * as THREE from 'three';
-import {OBJLoader} from 'objloader';
 
 let port;
 let reader;
@@ -19,6 +18,7 @@ let inputStream;
 let outputStream;
 let showCalibration = false;
 
+let rawAngles = [0, 0, 0];
 let orientation = [0, 0, 0];
 let quaternion = [1, 0, 0, 0];
 let calibration = [0, 0, 0, 0];
@@ -134,6 +134,9 @@ async function readLoop() {
       let plotdata;
       if (value.substr(0, 12) == "Orientation:") {
         orientation = value.substr(12).trim().split(",").map(x=>+x);
+      }
+      if (value.substr(0, 4) == "Raw:") {
+        rawAngles = value.substr(4).trim().split(",").map(x=>+x);
       }
       if (value.substr(0, 11) == "Quaternion:") {
         quaternion = value.substr(11).trim().split(",").map(x=>+x);
@@ -398,7 +401,8 @@ function saveSetting(setting, value) {
   window.localStorage.setItem(setting, JSON.stringify(value));
 }
 
-let bunny;
+let Rocket;
+let cube;
 
 const renderer = new THREE.WebGLRenderer({canvas});
 
@@ -426,11 +430,36 @@ scene.background = new THREE.Color('black');
 }
 
 {
-  const objLoader = new OBJLoader();
-  objLoader.load('assets/Rocket.obj', (root) => {
-    bunny = root;
-    scene.add(root);
-  });
+  const geometryX = new THREE.BoxGeometry( 10, 1, 1 ); 
+  const materialX = new THREE.MeshPhysicalMaterial( {color: 0xff0000} ); 
+  const meshX = new THREE.Mesh( geometryX, materialX ); 
+
+  const geometryY = new THREE.BoxGeometry( 1, 10, 1 ); 
+  const materialY = new THREE.MeshPhysicalMaterial( {color: 0x00ff00} ); 
+  const meshY = new THREE.Mesh( geometryY, materialY );
+  
+  const geometryZ = new THREE.BoxGeometry( 1, 1, 10 ); 
+  const materialZ = new THREE.MeshPhysicalMaterial( {color: 0x0000ff} ); 
+  const meshZ = new THREE.Mesh( geometryZ, materialZ );
+
+  meshX.position.x = 4.5
+  meshY.position.y = 4.5
+  meshZ.position.z = -4.5
+
+  Rocket = new THREE.Group();
+  Rocket.add( meshX );
+  Rocket.add( meshY );
+  Rocket.add( meshZ );
+
+
+  scene.add(Rocket);
+}
+
+{
+  const geometry = new THREE.BoxGeometry( 10, 1, 10 ); 
+  const material = new THREE.MeshPhysicalMaterial( {color: 0x00ff00} ); 
+  cube = new THREE.Mesh( geometry, material ); 
+  scene.add(cube);
 }
 
 function resizeRendererToDisplaySize(renderer) {
@@ -451,8 +480,21 @@ async function render() {
     camera.updateProjectionMatrix();
   }
 
-  if (bunny != undefined) {
-    if (angleType.value == "euler") {
+  if (Rocket != undefined) {
+    if (angleType.value == "raw") {
+      Rocket.visible = false;
+      cube.visible = true;
+
+      let rotationEuler = new THREE.Euler(
+        THREE.MathUtils.degToRad(rawAngles[0]),
+        0,
+        THREE.MathUtils.degToRad(90 - rawAngles[1]),
+        'XYZ'
+      );
+      cube.setRotationFromEuler(rotationEuler);
+    } else if (angleType.value == "euler") {
+      Rocket.visible = true;
+      cube.visible = false;
       if (showCalibration) {
           // BNO055
         let rotationEuler = new THREE.Euler(
@@ -461,7 +503,7 @@ async function render() {
           THREE.MathUtils.degToRad(orientation[1]),
           'YZX'
         );
-        bunny.setRotationFromEuler(rotationEuler);
+        Rocket.setRotationFromEuler(rotationEuler);
       } else {
         let rotationEuler = new THREE.Euler(
           THREE.MathUtils.degToRad(orientation[2]),
@@ -469,14 +511,16 @@ async function render() {
           THREE.MathUtils.degToRad(-orientation[1]),
           'YZX'
         );
-        bunny.setRotationFromEuler(rotationEuler);
+        Rocket.setRotationFromEuler(rotationEuler);
       }
     } else {
+      Rocket.visible = true;
+      cube.visible = false;
       let rotationQuaternion = new THREE.Quaternion(quaternion[1], quaternion[3], -quaternion[2], quaternion[0]);
-      bunny.setRotationFromQuaternion(rotationQuaternion);
+      Rocket.setRotationFromQuaternion(rotationQuaternion);
     }
   }
-  bunny.scale.set(0.5, 0.5, 0.5);
+
   renderer.render(scene, camera);
   updateCalibration();
   await sleep(10); // Allow 10ms for UI updates
